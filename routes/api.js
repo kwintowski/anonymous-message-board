@@ -15,8 +15,6 @@ var MongoClient = require('mongodb');
 var MessageHandler = require('../controllers/messageHandler.js');
 
 const CONNECTION_STRING = process.env.DB;
-const MSGBRD = "messageboard";
-
 
 module.exports = function (app) {
   
@@ -37,11 +35,11 @@ module.exports = function (app) {
            created_on:new Date().toISOString(),
            bumped_on:new Date().toISOString(),
            reported:false,
-           delete_password:
-           hash,replies:[]},(err,doc)=>{
+           delete_password:hash,
+           replies:['']},(err,doc)=>{
              if(err) next(err);
              else {
-               res.redirect('/b/'+board); 
+               res.redirect('/b/'+board+'/'); 
              }
             }
           )
@@ -57,15 +55,44 @@ module.exports = function (app) {
 
         if(err) console.log('Database error: ' + err);
       
-      var p = new Promise(function(resolve,reject) {
-          db.collection(board).find({}).toArray(function(err, docs) {
+        var options = {};
+      
+        var p = new Promise(function(resolve,reject) {
+          db.collection(board).find(
+            {},
+            {reported:0,
+             delete_password:0,
+             replies: { $slice: -3 }
+            }).limit(10).sort({bumped_on:-1}).toArray(function(err, docs) {
             if(err) reject(err);
             resolve(docs);
           })
         });
       
-        p.then((data)=>console.log(data)).catch((reject)=>console.log(reject));
+        p.then((data)=>res.send(data)).catch((reject)=>console.log(reject));
     });
+  })
+  
+  .put(function(req,res){
+    var board = req.body.board;
+    var thread_id = req.body.thread_id;
+    
+    MongoClient.connect(CONNECTION_STRING, { useNewUrlParser: true }, (err, client) => {
+        var db = client.db('myMongoDB');
+
+        if(err) console.log('Database error: ' + err);
+      
+        db.collection(board).findOneAndUpdate(
+          {_id:thread_id},
+          {$set:{reported:true}},(err,doc)=>{
+             if(err) console.log(err);
+             else {
+               res.send('success'); 
+             }
+            }
+          )
+        }
+      );
     
   })
   
