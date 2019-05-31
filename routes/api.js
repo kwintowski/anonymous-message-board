@@ -11,6 +11,7 @@
 var expect = require('chai').expect;
 var bcrypt = require('bcrypt');
 var MongoClient = require('mongodb');
+var ObjectId = require('mongodb').ObjectID;
 
 var MessageHandler = require('../controllers/messageHandler.js');
 
@@ -83,7 +84,7 @@ module.exports = function (app) {
         if(err) console.log('Database error: ' + err);
       
         db.collection(board).findOneAndUpdate(
-          {_id:thread_id},
+          {_id:ObjectId(thread_id)},
           {$set:{reported:true}},(err,doc)=>{
              if(err) console.log(err);
              else {
