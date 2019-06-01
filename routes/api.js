@@ -13,8 +13,6 @@ var bcrypt = require('bcrypt');
 var MongoClient = require('mongodb');
 var ObjectId = require('mongodb').ObjectID;
 
-var MessageHandler = require('../controllers/messageHandler.js');
-
 const CONNECTION_STRING = process.env.DB;
 
 module.exports = function (app) {
@@ -56,8 +54,6 @@ module.exports = function (app) {
 
         if(err) console.log('Database error: ' + err);
       
-        var options = {};
-      
         var p = new Promise(function(resolve,reject) {
           db.collection(board).aggregate([
             {$project:{
@@ -68,16 +64,11 @@ module.exports = function (app) {
               replycount: { $cond: { if: { $isArray: "$replies" }, then: { $size: "$replies" }, else: "NA"} },
               replies: {$slice: ["$replies", -3] }
             }},
-            {$sort:{bumped_on:-1}}]).limit(10).toArray((err, docs)=>{
-/*          db.collection(board).find(
-            {},
-            {reported:0,
-             delete_password:0,
-             replies: { $slice: -3 }
-            }).limit(10).sort({bumped_on:-1}).toArray(function(err, docs) {*/
-            if(err) reject(err);
-            resolve(docs);
-          })
+            {$sort:{bumped_on:-1}}])
+            .limit(10).toArray((err, docs)=>{
+              if(err) reject(err);
+              resolve(docs);
+            })
         });
       
         p.then((data)=>res.send(data)).catch((reject)=>console.log(reject));
@@ -149,29 +140,85 @@ module.exports = function (app) {
     var created_on = new Date().toISOString();
     
     MongoClient.connect(CONNECTION_STRING, { useNewUrlParser: true }, (err, client) => {
+      var db = client.db('myMongoDB');
+
+      if(err) console.log('Database error: ' + err);
+     
+      var p = new Promise(function(resolve,reject) {
+        db.collection(board).findOne({_id:ObjectId(thread_id)},(err,doc)=>{
+          if(err) reject(err);
+          else resolve(doc);
+        })});
+      
+      p.then((data)=>{
+            db.collection(board).findOneAndUpdate(
+              {_id:ObjectId(thread_id)},
+              {
+                $set:{bumped_on:created_on},
+                $push:{replies:{_id:(data.replies.length==0?1:++data.replies[data.replies.length-1]._id),text:text,created_on:created_on,delete_password:hash,reported:false}}
+              },
+              {returnOriginal:false},
+              (err,doc)=>{
+                 if(err) console.log(err);
+                 else {
+                   console.log(doc);
+                   res.redirect('/b/'+board+'/'+thread_id); 
+                   }
+                }
+              )}).catch((reject)=>console.log(reject));
+          });      
+        })
+    
+    .get(function(req,res){
+    var board = req.params.board;
+    var thread_id = req.query.thread_id;
+
+    MongoClient.connect(CONNECTION_STRING, { useNewUrlParser: true }, (err, client) => {
         var db = client.db('myMongoDB');
 
         if(err) console.log('Database error: ' + err);
       
-        db.collection(board).findOne({id:(ObjectId)},(err,doc)=>{
-          if(err) console.log(err);
-          else {
-            console.log(doc);
-            console.log(doc.replies);
-            console.log(doc.replies.length);
-            db.collection(board).findOneAndUpdate(
-              {_id:ObjectId(thread_id)},
-              {$set:{bumped_on:created_on}},
-              {$push:{replies:{_id:(doc.replies.length==0?0:++doc.replies[doc.replies.length-1]._id),text:text,created_on:created_on,delete_password:hash,reported:false}}},(err,doc)=>{
-                 if(err) console.log(err);
-                 else {
-                   res.redirect('/b/'+board+'/'+thread_id+'/'); 
-                   }
-                }
-              )}
-          })      
+        var p = new Promise(function(resolve,reject) {
+          db.collection(board).findOne(
+            {_id:ObjectId(thread_id)},
+            {reported:0,delete_password:0},(err, docs)=>{
+              if(err) reject(err);
+              console.log(docs);
+              resolve(docs);
+            })
+        });
+      
+        p.then((data)=>res.send(data)).catch((reject)=>console.log(reject));
+    });
+  })
+  
+  .put(function(req,res){
+    var board = req.body.board;
+    var thread_id = req.body.thread_id;
+    var reply_id = req.body.reply_id;
+    console.log(reply_id);
+    
+    MongoClient.connect(CONNECTION_STRING, { useNewUrlParser: true }, (err, client) => {
+        var db = client.db('myMongoDB');
+
+        if(err) console.log('Database error: ' + err);
+      
+        db.collection(board).findOneAndUpdate(
+          {_id:ObjectId(thread_id)},
+          {$set:{"replies.$[elem].reported": 'true'}},
+          {
+            arrayFilters: [ { "elem._id":reply_id}],
+            returnOriginal:false},
+          (err,doc)=>{
+             if(err) console.log(err);
+             else {
+               console.log(doc.value.replies);
+               res.send('success'); 
+             }
+            }
+          )
         }
       );
-    })
+    })  
 
 };
