@@ -203,22 +203,91 @@ module.exports = function (app) {
 
         if(err) console.log('Database error: ' + err);
       
-        db.collection(board).findOneAndUpdate(
-          {_id:ObjectId(thread_id)},
-          {$set:{"replies.$[elem].reported": 'true'}},
-          {
-            arrayFilters: [ { "elem._id":reply_id}],
-            returnOriginal:false},
-          (err,doc)=>{
-             if(err) console.log(err);
-             else {
-               console.log(doc.value.replies);
-               res.send('success'); 
-             }
-            }
-          )
+        console.log("Got Here");
+      
+        var p = new Promise(function(resolve,reject) {
+          db.collection(board).findOne(
+            {_id:ObjectId(thread_id)},
+            (err,doc)=>{
+               if(err) reject(err);
+               else {
+                 resolve(doc);
+               }
+              }
+            )});
+      
+      
+        p.then(function(result){
+          result.replies[reply_id-1].reported = true;
+          console.log(result);
+          db.collection(board).findOneAndReplace(
+            {_id:ObjectId(thread_id)},
+            result,
+            (err,doc)=>{
+               if(err) reject(err);
+               else {
+                 res.send('success');  
+               }
+              }
+            )
+        
+        })
+        
+        .catch((reject)=>console.log(reject));
         }
       );
     })  
+  
+  .delete(function(req,res){
+    var board = req.body.board;
+    var thread_id = req.body.thread_id;
+    var reply_id = req.body.reply_id;
+    var password = req.body.delete_password;
+    
+    MongoClient.connect(CONNECTION_STRING, { useNewUrlParser: true }, (err, client) => {
+        var db = client.db('myMongoDB');
+
+        if(err) console.log('Database error: ' + err);
+      
+        console.log("Got Here");
+      
+        var p = new Promise(function(resolve,reject) {
+          db.collection(board).findOne(
+            {_id:ObjectId(thread_id)},
+            (err,doc)=>{
+               if(err) reject(err);
+               else if (!bcrypt.compareSync(password, doc.delete_password)) {
+                 console.log("Entered: " + password);
+                 console.log("From DB: " + doc.delete_password);
+                 res.send('incorrect password'); 
+               }
+               else {
+                 resolve(doc);
+               }
+              }
+            )});
+      
+      
+        p.then(function(result){
+          result.replies[reply_id-1].text = "[deleted]";
+          console.log(result);
+          db.collection(board).findOneAndReplace(
+            {_id:ObjectId(thread_id)},
+            result,
+            (err,doc)=>{
+               if(err) reject(err);
+               else {
+                 res.send('success');  
+               }
+              }
+            )
+        
+        })
+        
+        .catch((reject)=>console.log(reject));
+        }
+      );
+    })    
+  
 
 };
