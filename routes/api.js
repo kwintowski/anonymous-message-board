@@ -133,7 +133,9 @@ module.exports = function (app) {
   app.route('/api/replies/:board')
     
   .post(function(req, res, next) {
-    var board = req.body.board;
+    //var board = req.body.board;
+    var board = (req.body.board==undefined?req.url.slice(13,-1):req.body.board);
+    console.log(board);
     var thread_id = req.body.thread_id;
     var text = req.body.text;
     var hash = bcrypt.hashSync(req.body.delete_password, 12);
@@ -193,7 +195,7 @@ module.exports = function (app) {
   })
   
   .put(function(req,res){
-    var board = req.body.board;
+    var board = (req.body.board==undefined?req.url.slice(13):req.body.board);
     var thread_id = req.body.thread_id;
     var reply_id = req.body.reply_id;
     console.log(reply_id);
@@ -204,6 +206,7 @@ module.exports = function (app) {
         if(err) console.log('Database error: ' + err);
       
         console.log("Got Here");
+      console.log(board);
       
         var p = new Promise(function(resolve,reject) {
           db.collection(board).findOne(
@@ -239,7 +242,7 @@ module.exports = function (app) {
     })  
   
   .delete(function(req,res){
-    var board = req.body.board;
+    var board = (req.body.board==undefined?req.url.slice(13):req.body.board);
     var thread_id = req.body.thread_id;
     var reply_id = req.body.reply_id;
     var password = req.body.delete_password;
@@ -277,7 +280,7 @@ module.exports = function (app) {
             (err,doc)=>{
                if(err) reject(err);
                else {
-                 res.send('success');  
+                 res.send('success');
                }
               }
             )
